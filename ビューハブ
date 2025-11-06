@@ -1,0 +1,321 @@
+-- ViewHub (Rayfield) - Script WITHOUT ESP
+-- LocalScript in StarterPlayerScripts
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Camera = workspace.CurrentCamera
+local LocalPlayer = Players.LocalPlayer
+
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+local Window = Rayfield:CreateWindow({
+    Name = "ViewHub",
+    LoadingTitle = "Loading ViewHub...",
+    LoadingSubtitle = "by ViewHub",
+    ConfigurationSaving = {Enabled = true, FolderName = "JoaoHub", FileName = "Config"},
+    KeySystem = false
+})
+
+-- Global variables
+local bodyHitboxEnabled, bodyHitboxSize = false, 5
+local headHitboxEnabled, headHitboxSize = false, 5
+local noclipEnabled = false
+local aimbotEnabled = false
+local fovRadius, rainbowFov = 100, false
+local hitChance = 100
+local targetParts = {}
+local messageGui
+
+-- Popup function
+local function showMessage(text)
+    if messageGui then messageGui:Destroy() end
+    messageGui = Instance.new("Hint", game.CoreGui)
+    messageGui.Text = text
+    task.delay(2, function() if messageGui then messageGui:Destroy() end end)
+end
+
+--// BODY HITBOX
+local function applyBodyHitbox(player)
+    if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+        local hrp = player.Character.HumanoidRootPart
+        if bodyHitboxEnabled then
+            hrp.Size = Vector3.new(bodyHitboxSize, bodyHitboxSize, bodyHitboxSize)
+            hrp.Transparency = 0.9
+            hrp.Color = Color3.fromRGB(255,255,255)
+            hrp.Material = Enum.Material.ForceField
+            hrp.CanCollide = false
+        else
+            hrp.Size = Vector3.new(2,2,1)
+            hrp.Transparency = 1
+            hrp.Material = Enum.Material.Plastic
+            hrp.CanCollide = true
+        end
+    end
+end
+
+local function updateBodyHitboxes()
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            applyBodyHitbox(player)
+        end
+    end
+end
+
+--// HEAD HITBOX
+local function applyHeadHitbox(player)
+    if player.Character and player.Character:FindFirstChild("Head") then
+        local head = player.Character.Head
+        if headHitboxEnabled then
+            head.Size = Vector3.new(headHitboxSize, headHitboxSize, headHitboxSize)
+            head.Transparency = 0.9
+            head.Color = Color3.fromRGB(255,255,255)
+            head.Material = Enum.Material.ForceField
+            head.CanCollide = false
+        else
+            head.Size = Vector3.new(2,1,1)
+            head.Transparency = 1
+            head.Material = Enum.Material.Plastic
+            head.CanCollide = true
+        end
+    end
+end
+
+local function updateHeadHitboxes()
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            applyHeadHitbox(player)
+        end
+    end
+end
+
+-- Update hitboxes on respawn
+Players.PlayerAdded:Connect(function(player)
+    player.CharacterAdded:Connect(function()
+        task.wait(0.5)
+        if bodyHitboxEnabled then applyBodyHitbox(player) end
+        if headHitboxEnabled then applyHeadHitbox(player) end
+    end)
+end)
+
+for _,player in pairs(Players:GetPlayers()) do
+    if player ~= LocalPlayer then
+        player.CharacterAdded:Connect(function()
+            task.wait(0.5)
+            if bodyHitboxEnabled then applyBodyHitbox(player) end
+            if headHitboxEnabled then applyHeadHitbox(player) end
+        end)
+    end
+end
+
+--// AIMBOT
+local fovCircle = Drawing.new("Circle")
+fovCircle.Thickness = 2
+fovCircle.NumSides = 100
+fovCircle.Radius = fovRadius
+fovCircle.Filled = false
+fovCircle.Color = Color3.fromRGB(255,0,0)
+fovCircle.Visible = false
+
+RunService.RenderStepped:Connect(function()
+    fovCircle.Position = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
+    fovCircle.Radius = fovRadius
+    if rainbowFov then
+        fovCircle.Color = Color3.fromHSV(tick()%5/5,1,1)
+    end
+end)
+
+local function getClosestTarget()
+    local closest, dist = nil, fovRadius
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            local pos, onScreen = Camera:WorldToViewportPoint(player.Character.HumanoidRootPart.Position)
+            if onScreen then
+                local magnitude = (Vector2.new(pos.X,pos.Y) - Vector2.new(Camera.ViewportSize.X/2,Camera.ViewportSize.Y/2)).magnitude
+                if magnitude < dist then
+                    local ray = Ray.new(Camera.CFrame.Position, (player.Character.HumanoidRootPart.Position - Camera.CFrame.Position).unit*500)
+                    local hit = workspace:FindPartOnRay(ray, LocalPlayer.Character)
+                    if hit and hit:IsDescendantOf(player.Character) then
+                        closest = player
+                        dist = magnitude
+                    end
+                end
+            end
+        end
+    end
+    return closest
+end
+
+RunService.RenderStepped:Connect(function()
+    if aimbotEnabled then
+        fovCircle.Visible = true
+        local target = getClosestTarget()
+        if target and #targetParts > 0 then
+            local partName = targetParts[math.random(1,#targetParts)]
+            local part = target.Character:FindFirstChild(partName)
+            if part then
+                Camera.CFrame = CFrame.new(Camera.CFrame.Position, part.Position)
+            end
+        end
+    else
+        fovCircle.Visible = false
+    end
+end)
+
+--// TABS
+
+-- Battle Tab
+local TabBattle = Window:CreateTab("Battle")
+TabBattle:CreateToggle({Name="Body Hitbox",CurrentValue=false,Callback=function(v) bodyHitboxEnabled=v; updateBodyHitboxes() end})
+TabBattle:CreateSlider({Name="Body Hitbox Size",Range={0,1000},Increment=10,CurrentValue=5,Callback=function(v) bodyHitboxSize=v; updateBodyHitboxes() end})
+TabBattle:CreateToggle({Name="Head Hitbox",CurrentValue=false,Callback=function(v) headHitboxEnabled=v; updateHeadHitboxes() end})
+TabBattle:CreateSlider({Name="Head Hitbox Size",Range={0,1000},Increment=10,CurrentValue=5,Callback=function(v) headHitboxSize=v; updateHeadHitboxes() end})
+
+-- Player Tab
+local TabPlayer = Window:CreateTab("Player")
+TabPlayer:CreateSlider({Name="Jump Power",Range={0,100},Increment=1,CurrentValue=50,Callback=function(v)
+    if LocalPlayer.Character then
+        LocalPlayer.Character.Humanoid.UseJumpPower=true
+        LocalPlayer.Character.Humanoid.JumpPower=v
+    end
+end})
+TabPlayer:CreateSlider({Name="Walk Speed",Range={0,100},Increment=1,CurrentValue=16,Callback=function(v)
+    if LocalPlayer.Character then
+        LocalPlayer.Character.Humanoid.WalkSpeed=v
+    end
+end})
+
+-- Fun Tab
+local TabFun = Window:CreateTab("Fun")
+TabFun:CreateToggle({Name="Noclip",CurrentValue=false,Callback=function(v) noclipEnabled=v end})
+RunService.Stepped:Connect(function()
+    if noclipEnabled and LocalPlayer.Character then
+        for _,part in pairs(LocalPlayer.Character:GetDescendants()) do
+            if part:IsA("BasePart") then part.CanCollide=false end
+        end
+    end
+end)
+
+-- Aimbot Tab
+local TabAimbot = Window:CreateTab("Aimbot")
+TabAimbot:CreateToggle({Name="Enable Aimbot",CurrentValue=false,Callback=function(v) aimbotEnabled=v end})
+TabAimbot:CreateSlider({Name="FOV Radius",Range={0,300},Increment=5,CurrentValue=100,Callback=function(v) fovRadius=v end})
+TabAimbot:CreateToggle({Name="Rainbow FOV",CurrentValue=false,Callback=function(v) rainbowFov=v end})
+TabAimbot:CreateSlider({Name="Hit Chance",Range={0,100},Increment=1,CurrentValue=100,Callback=function(v) hitChance=v end})
+
+local partsList = {"Head","Torso","LeftFoot","RightFoot","LeftArm","RightArm","LeftUpperArm","RightUpperArm"}
+for _,partName in pairs(partsList) do
+    TabAimbot:CreateToggle({Name=partName, CurrentValue=false, Callback=function(v)
+        if v then
+            if #targetParts < 2 then
+                table.insert(targetParts,partName)
+            else
+                showMessage("⚠️ ENABLE UP TO 2 OPTIONS, 3 CAN BUG AND CRASH ⚠️")
+            end
+        else
+            for i,p in ipairs(targetParts) do
+                if p==partName then table.remove(targetParts,i) end
+            end
+        end
+    end})
+end
+TabAimbot:CreateLabel("⚠️ WARNING: ENABLE UP TO 2 OPTIONS, 3 CAN BUG AND CRASH ⚠️")
+
+-- Shaders Tab
+local TabShaders = Window:CreateTab("Shaders")
+
+-- Shaders #1
+TabShaders:CreateToggle({Name="#1 Shaders", CurrentValue=false, Callback=function(v)
+    local lighting = game:GetService("Lighting")
+    if v then
+        lighting.ClockTime = 16.5
+        lighting.Brightness = 2
+        lighting.GlobalShadows = true
+        lighting.EnvironmentDiffuseScale = 0.5
+        lighting.EnvironmentSpecularScale = 1
+        lighting.OutdoorAmbient = Color3.fromRGB(128,128,128)
+        lighting.Ambient = Color3.fromRGB(90,90,90)
+        lighting.FogStart = 9999
+        lighting.FogEnd = 10000
+        lighting.FogColor = Color3.fromRGB(255,255,255)
+        local cc = Instance.new("ColorCorrectionEffect")
+        cc.Brightness = 0.05
+        cc.Contrast = 0.2
+        cc.Saturation = 0.3
+        cc.TintColor = Color3.fromRGB(255,240,230)
+        cc.Parent = lighting
+        local blur = Instance.new("BlurEffect")
+        blur.Size = 1
+        blur.Parent = lighting
+        local sun = Instance.new("SunRaysEffect")
+        sun.Intensity = 0.3
+        sun.Spread = 1
+        sun.Parent = lighting
+    else
+        lighting:ClearAllChildren()
+    end
+end})
+
+-- Dark Shaders
+TabShaders:CreateToggle({Name="Dark Shaders", CurrentValue=false, Callback=function(v)
+    local Lighting = game:GetService("Lighting")
+    if v then
+        Lighting.ClockTime = 20.2
+        Lighting.FogEnd = 800
+        Lighting.FogStart = 100
+        Lighting.FogColor = Color3.fromRGB(20,20,35)
+        Lighting.Ambient = Color3.fromRGB(50,50,65)
+        Lighting.OutdoorAmbient = Color3.fromRGB(35,35,50)
+        Lighting.Brightness = 1
+        Lighting.EnvironmentDiffuseScale = 0.5
+        Lighting.EnvironmentSpecularScale = 0.25
+        Lighting.GlobalShadows = true
+        Lighting.ExposureCompensation = 0.2
+        for _, v in pairs(Lighting:GetChildren()) do
+            if v:IsA("PostEffect") or v:IsA("Sky") then v:Destroy() end
+        end
+        local sky = Instance.new("Sky")
+        sky.Name = "CinematicNightSky"
+        sky.SkyboxBk = "rbxassetid://401664839"
+        sky.SkyboxDn = "rbxassetid://401664862"
+        sky.SkyboxFt = "rbxassetid://401664960"
+        sky.SkyboxLf = "rbxassetid://401665016"
+        sky.SkyboxRt = "rbxassetid://401665079"
+        sky.SkyboxUp = "rbxassetid://401665129"
+        sky.StarCount = 3000
+        sky.SunAngularSize = 0
+        sky.MoonAngularSize = 11
+        sky.CelestialBodiesShown = true
+        sky.Parent = Lighting
+        local cc = Instance.new("ColorCorrectionEffect")
+        cc.Name = "CinematicFix"
+        cc.Brightness = 0.05
+        cc.Contrast = 0.4
+        cc.Saturation = -0.15
+        cc.TintColor = Color3.fromRGB(150,170,230)
+        cc.Parent = Lighting
+        local bloom = Instance.new("BloomEffect")
+        bloom.Intensity = 0.25
+        bloom.Size = 15
+        bloom.Threshold = 1
+        bloom.Parent = Lighting
+        local dof = Instance.new("DepthOfFieldEffect")
+        dof.FarIntensity = 0.03
+        dof.FocusDistance = 85
+        dof.InFocusRadius = 120
+        dof.NearIntensity = 0.03
+        dof.Parent = Lighting
+        local rays = Instance.new("SunRaysEffect")
+        rays.Intensity = 0.012
+        rays.Spread = 0.75
+        rays.Parent = Lighting
+        local blur = Instance.new("BlurEffect")
+        blur.Size = 4
+        blur.Parent = Lighting
+    else
+        Lighting:ClearAllChildren()
+    end
+end})
+
+-- Credits Tab
+local TabCredits = Window:CreateTab("Credits")
+TabCredits:CreateLabel("Credits: ViewHub")
