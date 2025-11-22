@@ -1,0 +1,2 @@
+--VC
+loadstring(game:HttpGet("https://raw.githubusercontent.com/TexRBLX/Roblox-stuff/refs/heads/main/violence-district/vd_rewrite.lua"))()
